@@ -1,69 +1,90 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
-const bodyParser = require('body-parser');
+const bcrypt = require('bcrypt');
+const nodemailer = require('nodemailer');
 const cors = require('cors');
+require('dotenv').config();
 
-const prisma = new PrismaClient();
 const app = express();
+const prisma = new PrismaClient();
+const PORT = 3000;
 
+app.use(express.json());
 app.use(cors());
-app.use(bodyParser.json());
 
 app.post('/api/signup', async (req, res) => {
-  const { username, password, confirmPassword, email, contactNumber } = req.body;
-
-  if (!username || !password || !confirmPassword || !email || !contactNumber) {
-    return res.status(400).json({ message: "All fields are required." });
-  }
-
-  if (password !== confirmPassword) {
-    return res.status(400).json({ message: "Passwords do not match." });
-  }
-
-  const existingUser = await prisma.user.findUnique({
-    where: { email }
-  });
-
-  if (existingUser) {
-    return res.status(400).json({ message: "Email already exists." });
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const { username, email, password, contactNumber } = req.body;
 
   try {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) return res.status(400).json({ message: "Email already registered" });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: {
-        username,
-        email,
-        contactNumber,
-        password: hashedPassword
-      }
+      data: { username, email, password: hashedPassword, contactNumber },
     });
-    res.status(201).json({ message: "User created successfully", user: { id: user.id, username: user.username } });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err });
+
+    res.status(201).json({ message: "User created successfully", user });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
+});
+
+
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) return res.status(401).json({ message: "Incorrect password" });
+
+  res.json({ message: "Login successful", user: { id: user.id, username: user.username } });
+});
+
+
+function generateOTP() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+
+app.post('/api/forgot-password', async (req, res) => {
+  const { email } = req.body;
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) return res.status(404).json({ message: "Email not registered" });
+
+  const otp = generateOTP();
+
+  await prisma.passwordReset.create({ data: { email, otp } });
+
+  console.log("OTP:", otp);
+
+  res.json({ message: "OTP generated", otp }); 
+});
+
+app.post('/api/verify-otp', async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  const record = await prisma.passwordReset.findFirst({
+    where: { email, otp },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  if (!record) return res.status(400).json({ message: "Invalid or expired OTP" });
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await prisma.user.update({ where: { email }, data: { password: hashedPassword } });
+
+  await prisma.passwordReset.deleteMany({ where: { email } });
+
+  res.json({ message: "Password updated successfully" });
 });
 
 app.get('/api/users', async (req, res) => {
-    try {
-      const users = await prisma.user.findMany({
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          contactNumber: true,
-          createdAt: true
-        }
-      });
-      res.json(users);
-    } catch (error) {
-      res.status(500).json({ message: "Error fetching users", error });
-    }
-  });
-  
-
-app.listen(3000, () => {
-  console.log("Server is running at http://localhost:3000");
+  const users = await prisma.user.findMany();
+  res.json(users);
 });
+
+app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
