@@ -87,4 +87,8 @@ app.get('/api/users', async (req, res) => {
   res.json(users);
 });
 
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'API is working!' });
+});
+
 app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
