@@ -91,4 +91,6 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'API is working!' });
 });
 
+app.use('/api', eventRoutes);
+
 app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));

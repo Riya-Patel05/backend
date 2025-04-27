@@ -1,23 +1,32 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
-}
-
 model User {
-  id            Int      @id @default(autoincrement())
-  username      String
-  email         String   @unique
-  password      String
-  contactNumber String
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("user") // user or admin
+  events    Event[]  // Relation to events
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-model PasswordReset {
-  id        Int      @id @default(autoincrement())
-  email     String
-  otp       String
-  createdAt DateTime @default(now())
+model Event {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?
+  date        DateTime
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id])
+  tasks       Task[]    // Related tasks
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Task {
+  id        Int       @id @default(autoincrement())
+  title     String
+  done      Boolean   @default(false)
+  eventId   Int
+  event     Event     @relation(fields: [eventId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
