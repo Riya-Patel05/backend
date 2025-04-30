@@ -3,6 +3,7 @@ model User {
   name      String
   email     String   @unique
   password  String
+  contactNumber String
   role      String   @default("user") // user or admin
   events    Event[]  // Relation to events
   createdAt DateTime @default(now())
